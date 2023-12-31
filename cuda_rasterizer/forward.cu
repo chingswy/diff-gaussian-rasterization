@@ -107,8 +107,8 @@ __device__ float3 computeCov2D(const float3& mean, float focal_x, float focal_y,
 
 	// Apply low-pass filter: every Gaussian should be at least
 	// one pixel wide/high. Discard 3rd row and column.
-	cov[0][0] += 0.3f;
-	cov[1][1] += 0.3f;
+	cov[0][0] += DILATE_PIXEL;
+	cov[1][1] += DILATE_PIXEL;
 	return { float(cov[0][0]), float(cov[0][1]), float(cov[1][1]) };
 }
 
@@ -266,11 +266,13 @@ renderCUDA(
 	int W, int H,
 	const float2* __restrict__ points_xy_image,
 	const float* __restrict__ features,
+	const float* __restrict__ depths,
 	const float4* __restrict__ conic_opacity,
 	float* __restrict__ final_T,
 	uint32_t* __restrict__ n_contrib,
 	const float* __restrict__ bg_color,
-	float* __restrict__ out_color)
+	float* __restrict__ out_color
+)
 {
 	// Identify current tile and associated min/max pixel range.
 	auto block = cg::this_thread_block();
@@ -298,6 +300,7 @@ renderCUDA(
 
 	// Initialize helper variables
 	float T = 1.0f;
+	float D = 0.0f;
 	uint32_t contributor = 0;
 	uint32_t last_contributor = 0;
 	float C[CHANNELS] = { 0 };
@@ -351,11 +354,19 @@ renderCUDA(
 			}
 
 			// Eq. (3) from 3D Gaussian splatting paper.
-			for (int ch = 0; ch < CHANNELS; ch++)
-				C[ch] += features[collected_id[j] * CHANNELS + ch] * alpha * T;
+			for (int ch = 0; ch < CHANNELS; ch++){
+				if(ch < 3){
+					C[ch] += features[collected_id[j] * CHANNELS + ch] * alpha * T;
+				}else if(ch == 3){
+					C[ch] += alpha * T;
+				}
+			}
 
+			// D += depths[collected_id[i]] * alpha * T;
+			// Depth不希望渐变
+			// D += depths[collected_id[i]] * T * con_o.w;
+			D += depths[collected_id[i]] * T * alpha;
 			T = test_T;
-
 			// Keep track of last range entry to update this
 			// pixel.
 			last_contributor = contributor;
@@ -368,9 +379,22 @@ renderCUDA(
 	{
 		final_T[pix_id] = T;
 		n_contrib[pix_id] = last_contributor;
-		for (int ch = 0; ch < CHANNELS; ch++)
-			out_color[ch * H * W + pix_id] = C[ch] + T * bg_color[ch];
+		for (int ch = 0; ch < CHANNELS; ch++){
+			if(ch < 3){
+				out_color[ch * H * W + pix_id] = C[ch] + T * bg_color[ch];
+			}else if(ch==3){
+				out_color[ch * H * W + pix_id] = C[ch];
+			}else if(ch==4){
+				out_color[ch * H * W + pix_id] = D;
+			}
+		}
 	}
+	// pix_id = W * pix_min.x + pix_min.y;
+	// out_color[0 * H * W + pix_id] = 0;
+	// out_color[1 * H * W + pix_id] = 0;
+	// out_color[2 * H * W + pix_id] = 1.;
+	// out_color[3 * H * W + pix_id] = 1.;
+	// out_color[4 * H * W + pix_id] = 10.;
 }
 
 void FORWARD::render(
@@ -380,6 +404,7 @@ void FORWARD::render(
 	int W, int H,
 	const float2* means2D,
 	const float* colors,
+	const float* depths,
 	const float4* conic_opacity,
 	float* final_T,
 	uint32_t* n_contrib,
@@ -392,6 +417,7 @@ void FORWARD::render(
 		W, H,
 		means2D,
 		colors,
+		depths,
 		conic_opacity,
 		final_T,
 		n_contrib,
