@@ -272,7 +272,8 @@ renderCUDA(
 	uint32_t* __restrict__ n_contrib,
 	const float* __restrict__ bg_color,
 	float* __restrict__ out_color,
-	int* __restrict__ out_point_id
+	int* __restrict__ out_point_id,
+	float* __restrict__ out_point_weight
 )
 {
 	// Identify current tile and associated min/max pixel range.
@@ -365,10 +366,14 @@ renderCUDA(
 					C[ch] += alpha * T;
 				}
 			}
-
+			
 			if(T * alpha > weight_max){
 				weight_max = T * alpha;
 				max_point_id = collected_id[j];
+			}
+			// weight max
+			if(T * alpha > out_point_weight[collected_id[j]]){
+				out_point_weight[collected_id[j]] = T * alpha;
 			}
 
 			// D += depths[collected_id[i]] * alpha * T;
@@ -400,12 +405,6 @@ renderCUDA(
 		}
 		out_point_id[pix_id] = max_point_id;
 	}
-	// pix_id = W * pix_min.x + pix_min.y;
-	// out_color[0 * H * W + pix_id] = 0;
-	// out_color[1 * H * W + pix_id] = 0;
-	// out_color[2 * H * W + pix_id] = 1.;
-	// out_color[3 * H * W + pix_id] = 1.;
-	// out_color[4 * H * W + pix_id] = 10.;
 }
 
 void FORWARD::render(
@@ -421,7 +420,8 @@ void FORWARD::render(
 	uint32_t* n_contrib,
 	const float* bg_color,
 	float* out_color,
-	int* out_point_id
+	int* out_point_id,
+	float* out_point_weight
 )
 {
 	renderCUDA<NUM_CHANNELS> << <grid, block >> > (
@@ -436,7 +436,8 @@ void FORWARD::render(
 		n_contrib,
 		bg_color,
 		out_color,
-		out_point_id
+		out_point_id,
+		out_point_weight
 	);
 }
 

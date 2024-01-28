@@ -61,7 +61,8 @@ namespace FORWARD
 		uint32_t* n_contrib,
 		const float* bg_color,
 		float* out_color,
-		int* out_point_id
+		int* out_point_id,
+		float* out_point_weight
 		);
 	void filter_preprocess(int P, int M,
 		const float* means3D,

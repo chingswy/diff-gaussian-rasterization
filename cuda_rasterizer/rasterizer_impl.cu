@@ -217,6 +217,7 @@ int CudaRasterizer::Rasterizer::forward(
 	const bool prefiltered,
 	float* out_color,
 	int* out_point_id,
+	float* out_point_weight,
 	int* radii,
 	bool debug)
 {
@@ -334,7 +335,8 @@ int CudaRasterizer::Rasterizer::forward(
 		imgState.n_contrib,
 		background,
 		out_color,
-		out_point_id
+		out_point_id,
+		out_point_weight
 	), debug)
 
 	return num_rendered;
