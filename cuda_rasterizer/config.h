@@ -15,5 +15,5 @@
 #define NUM_CHANNELS 3 // Default 3, RGB, acc, depth
 #define BLOCK_X 16
 #define BLOCK_Y 16
-#define DILATE_PIXEL 0 // 0.3 for one pixel
+#define DILATE_PIXEL 0. // 0.3 for one pixel
 #endif
