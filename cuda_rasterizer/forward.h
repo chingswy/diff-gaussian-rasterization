@@ -47,6 +47,17 @@ namespace FORWARD
 		uint32_t* tiles_touched,
 		bool prefiltered);
 
+	void compute_radius(
+		int P,
+		int H, int W,
+		float* means3D,
+		float* scales,
+		float* rotations,
+		float* viewmatrix,
+		float* projmatrix,
+		const float tan_fovx, float tan_fovy,
+		float* radii);
+
 	// Main rasterization method.
 	void render(
 		const dim3 grid, dim3 block,
@@ -62,6 +73,7 @@ namespace FORWARD
 		const float* bg_color,
 		float* out_color,
 		int* out_point_id,
+		float* out_point_weight_pixel,
 		float* out_point_weight
 		);
 	void filter_preprocess(int P, int M,

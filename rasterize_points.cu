@@ -20,6 +20,7 @@
 #include <memory>
 #include "cuda_rasterizer/config.h"
 #include "cuda_rasterizer/rasterizer.h"
+#include "cuda_rasterizer/forward.h"
 #include <fstream>
 #include <string>
 #include <functional>
@@ -32,7 +33,7 @@ std::function<char*(size_t N)> resizeFunctional(torch::Tensor& t) {
     return lambda;
 }
 
-std::tuple<int, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor>
+std::tuple<int, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor>
 RasterizeGaussiansCUDA(
 	const torch::Tensor& background,
 	const torch::Tensor& means3D,
@@ -67,6 +68,7 @@ RasterizeGaussiansCUDA(
 
   torch::Tensor out_color = torch::full({NUM_CHANNELS, H, W}, 0.0, float_opts);
   torch::Tensor out_point_id = torch::full({H, W}, 0, int_opts);
+  torch::Tensor out_point_weight_pixel = torch::full({H, W}, 0, float_opts);
   torch::Tensor radii = torch::full({P}, 0, means3D.options().dtype(torch::kInt32));
   // maximum rendering weight for each points
   torch::Tensor out_point_weight = torch::full({P}, 0, float_opts);
@@ -112,11 +114,12 @@ RasterizeGaussiansCUDA(
 		prefiltered,
 		out_color.contiguous().data<float>(),
 		out_point_id.contiguous().data<int>(),
+		out_point_weight_pixel.contiguous().data<float>(),
 		out_point_weight.contiguous().data<float>(),
 		radii.contiguous().data<int>(),
 		debug);
   }
-  return std::make_tuple(rendered, out_color, out_point_id, out_point_weight, radii, geomBuffer, binningBuffer, imgBuffer);
+  return std::make_tuple(rendered, out_color, out_point_id, out_point_weight_pixel, out_point_weight, radii, geomBuffer, binningBuffer, imgBuffer);
 }
 
 std::tuple<torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor>
@@ -199,6 +202,43 @@ std::tuple<torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Te
 
   return std::make_tuple(dL_dmeans2D, dL_dcolors, dL_dopacity, dL_dmeans3D, dL_dcov3D, dL_dsh, dL_dscales, dL_drotations);
 }
+
+
+torch::Tensor compute_radius(
+	torch::Tensor& means3D,
+	torch::Tensor& scales,
+	torch::Tensor& rotations,
+	torch::Tensor& viewmatrix,
+	torch::Tensor& projmatrix,
+	const float tan_fovx, 
+	const float tan_fovy,
+    const int image_height,
+    const int image_width
+)
+{ 
+	const int P = means3D.size(0);
+	const int H = image_height;
+	const int W = image_width;
+  
+	torch::Tensor radii = torch::full({P}, 0, means3D.options());
+	if(P != 0)
+	{
+		int M = 0;
+		FORWARD::compute_radius(
+			P,
+			H, W,
+			means3D.contiguous().data<float>(),
+			scales.contiguous().data_ptr<float>(),
+			rotations.contiguous().data_ptr<float>(),
+			viewmatrix.contiguous().data<float>(), 
+			projmatrix.contiguous().data<float>(),
+			tan_fovx,
+			tan_fovy,
+			radii.contiguous().data<float>());
+	}
+	return radii;
+}
+
 
 torch::Tensor markVisible(
 		torch::Tensor& means3D,

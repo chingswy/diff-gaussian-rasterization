@@ -15,7 +15,7 @@
 #include <tuple>
 #include <string>
 	
-std::tuple<int, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor>
+std::tuple<int, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor>
 RasterizeGaussiansCUDA(
 	const torch::Tensor& background,
 	const torch::Tensor& means3D,
@@ -60,11 +60,23 @@ std::tuple<torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Te
 	const torch::Tensor& binningBuffer,
 	const torch::Tensor& imageBuffer,
 	const bool debug);
-		
+
 torch::Tensor markVisible(
 		torch::Tensor& means3D,
 		torch::Tensor& viewmatrix,
 		torch::Tensor& projmatrix);
+
+torch::Tensor compute_radius(
+		torch::Tensor& means3D,
+		torch::Tensor& scales,
+		torch::Tensor& rotations,
+		torch::Tensor& viewmatrix,
+		torch::Tensor& projmatrix,
+		const float tan_fovx, 
+		const float tan_fovy,
+		const int image_height,
+		const int image_width
+		);
 
 torch::Tensor
 RasterizeGaussiansfilterCUDA(

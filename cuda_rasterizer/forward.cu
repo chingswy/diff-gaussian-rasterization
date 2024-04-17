@@ -151,6 +151,63 @@ __device__ void computeCov3D(const glm::vec3 scale, float mod, const glm::vec4 r
 	cov3D[5] = Sigma[2][2];
 }
 
+__global__ void compute_radius_cuda(int P,
+	const float* orig_points,
+	const glm::vec3* scales,
+	const glm::vec4* rotations,
+	const float* viewmatrix,
+	const float* projmatrix,
+	const int W, int H,
+	const float tan_fovx, float tan_fovy,
+	const float focal_x, float focal_y,
+	float* radii)
+{
+	auto idx = cg::this_grid().thread_rank();
+	if (idx >= P)
+		return;
+
+	// Initialize radius and touched tiles to 0. If this isn't changed,
+	// this Gaussian will not be processed further.
+	radii[idx] = 0;
+
+	// Perform near culling, quit if outside.
+	float3 p_view;
+	if (!in_frustum(idx, orig_points, viewmatrix, projmatrix, false, p_view))
+		return;
+
+	// Transform point by projecting
+	float3 p_orig = { orig_points[3 * idx], orig_points[3 * idx + 1], orig_points[3 * idx + 2] };
+	float4 p_hom = transformPoint4x4(p_orig, projmatrix);
+	float p_w = 1.0f / (p_hom.w + 0.0000001f);
+	float3 p_proj = { p_hom.x * p_w, p_hom.y * p_w, p_hom.z * p_w };
+
+	// If 3D covariance matrix is precomputed, use it, otherwise compute
+	// from scaling and rotation parameters. 
+	float cov3D[6];
+	computeCov3D(scales[idx], 1, rotations[idx], cov3D);
+
+	// Compute 2D screen-space covariance matrix
+	float3 cov = computeCov2D(p_orig, focal_x, focal_y, tan_fovx, tan_fovy, cov3D, viewmatrix);
+
+	// Invert covariance (EWA algorithm)
+	float det = (cov.x * cov.z - cov.y * cov.y);
+	if (det == 0.0f)
+		return;
+	float det_inv = 1.f / det;
+	float3 conic = { cov.z * det_inv, -cov.y * det_inv, cov.x * det_inv };
+
+	// Compute extent in screen space (by finding eigenvalues of
+	// 2D covariance matrix). Use extent to compute a bounding rectangle
+	// of screen-space tiles that this Gaussian overlaps with. Quit if
+	// rectangle covers 0 tiles. 
+	float mid = 0.5f * (cov.x + cov.z);
+	float lambda1 = mid + sqrt(max(0.1f, mid * mid - det));
+	float lambda2 = mid - sqrt(max(0.1f, mid * mid - det));
+	float my_radius = 3.f * sqrt(max(lambda1, lambda2));
+
+	radii[idx] = my_radius;
+}
+
 // Perform initial steps for each Gaussian prior to rasterization.
 template<int C>
 __global__ void preprocessCUDA(int P, int D, int M,
@@ -273,6 +330,7 @@ renderCUDA(
 	const float* __restrict__ bg_color,
 	float* __restrict__ out_color,
 	int* __restrict__ out_point_id,
+	float* __restrict__ out_point_weight_pixel,
 	float* __restrict__ out_point_weight
 )
 {
@@ -404,7 +462,36 @@ renderCUDA(
 			}
 		}
 		out_point_id[pix_id] = max_point_id;
+		out_point_weight_pixel[pix_id] = weight_max;
 	}
+}
+
+void FORWARD::compute_radius(
+	int P,
+	int H, int W,
+	float* means3D,
+	float* scales,
+	float* rotations,
+	float* viewmatrix,
+	float* projmatrix,
+	const float tan_fovx, float tan_fovy,
+	float* radii)
+{
+	const float focal_y = H / (2.0f * tan_fovy);
+	const float focal_x = W / (2.0f * tan_fovx);
+
+	compute_radius_cuda<<<(P+255)/256, 256>>>(
+		P,
+		means3D,
+		(glm::vec3*)scales,
+		(glm::vec4*)rotations,
+		viewmatrix,
+		projmatrix,
+		W, H,
+		tan_fovx, tan_fovy,
+		focal_x, focal_y,
+		radii
+	);
 }
 
 void FORWARD::render(
@@ -421,6 +508,7 @@ void FORWARD::render(
 	const float* bg_color,
 	float* out_color,
 	int* out_point_id,
+	float* out_point_weight_pixel,
 	float* out_point_weight
 )
 {
@@ -437,6 +525,7 @@ void FORWARD::render(
 		bg_color,
 		out_color,
 		out_point_id,
+		out_point_weight_pixel,
 		out_point_weight
 	);
 }

@@ -27,7 +27,7 @@ namespace CudaRasterizer
 			float* viewmatrix,
 			float* projmatrix,
 			bool* present);
-
+			
 		static int forward(
 			std::function<char* (size_t)> geometryBuffer,
 			std::function<char* (size_t)> binningBuffer,
@@ -50,6 +50,7 @@ namespace CudaRasterizer
 			const bool prefiltered,
 			float* out_color,
 			int* out_point_id,
+			float* out_point_weight_pixel,
 			float* out_point_weight,
 			int* radii = nullptr,
 			bool debug = false);

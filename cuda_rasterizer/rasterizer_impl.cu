@@ -217,13 +217,14 @@ int CudaRasterizer::Rasterizer::forward(
 	const bool prefiltered,
 	float* out_color,
 	int* out_point_id,
+	float* out_point_weight_pixel,
 	float* out_point_weight,
 	int* radii,
 	bool debug)
 {
 	const float focal_y = height / (2.0f * tan_fovy);
 	const float focal_x = width / (2.0f * tan_fovx);
-
+	
 	size_t chunk_size = required<GeometryState>(P);
 	char* chunkptr = geometryBuffer(chunk_size);
 	GeometryState geomState = GeometryState::fromChunk(chunkptr, P);
@@ -336,6 +337,7 @@ int CudaRasterizer::Rasterizer::forward(
 		background,
 		out_color,
 		out_point_id,
+		out_point_weight_pixel,
 		out_point_weight
 	), debug)
 
