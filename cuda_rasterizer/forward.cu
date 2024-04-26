@@ -151,6 +151,27 @@ __device__ void computeCov3D(const glm::vec3 scale, float mod, const glm::vec4 r
 	cov3D[5] = Sigma[2][2];
 }
 
+__forceinline__ __device__ bool in_frustum_true(int idx,
+	const float* orig_points,
+	const float* viewmatrix,
+	const float* projmatrix,
+	float3& p_view)
+{
+	float3 p_orig = { orig_points[3 * idx], orig_points[3 * idx + 1], orig_points[3 * idx + 2] };
+
+	// Bring points to screen space
+	float4 p_hom = transformPoint4x4(p_orig, projmatrix);
+	float p_w = 1.0f / (p_hom.w + 0.0000001f);
+	float3 p_proj = { p_hom.x * p_w, p_hom.y * p_w, p_hom.z * p_w };
+	p_view = transformPoint4x3(p_orig, viewmatrix);
+
+	if (p_view.z <= 0.2f || ((p_proj.x < -1.3 || p_proj.x > 1.3 || p_proj.y < -1.3 || p_proj.y > 1.3)))
+	{
+		return false;
+	}
+	return true;
+}
+
 __global__ void compute_radius_cuda(int P,
 	const float* orig_points,
 	const glm::vec3* scales,
@@ -172,7 +193,7 @@ __global__ void compute_radius_cuda(int P,
 
 	// Perform near culling, quit if outside.
 	float3 p_view;
-	if (!in_frustum(idx, orig_points, viewmatrix, projmatrix, false, p_view))
+	if (!in_frustum_true(idx, orig_points, viewmatrix, projmatrix, p_view))
 		return;
 
 	// Transform point by projecting
