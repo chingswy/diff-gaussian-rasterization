@@ -107,8 +107,11 @@ __device__ float3 computeCov2D(const float3& mean, float focal_x, float focal_y,
 
 	// Apply low-pass filter: every Gaussian should be at least
 	// one pixel wide/high. Discard 3rd row and column.
-	cov[0][0] += DILATE_PIXEL;
-	cov[1][1] += DILATE_PIXEL;
+	
+	// cov[0][0] += DILATE_PIXEL;
+	// cov[1][1] += DILATE_PIXEL;
+	cov[0][0] = max(cov[0][0], DILATE_PIXEL);
+	cov[1][1] = max(cov[1][1], DILATE_PIXEL);
 	return { float(cov[0][0]), float(cov[0][1]), float(cov[1][1]) };
 }
 
