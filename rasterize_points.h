@@ -77,19 +77,3 @@ torch::Tensor compute_radius(
 		const int image_height,
 		const int image_width
 		);
-
-torch::Tensor
-RasterizeGaussiansfilterCUDA(
-	const torch::Tensor& means3D,
-	const torch::Tensor& scales,
-	const torch::Tensor& rotations,
-	const float scale_modifier,
-	const torch::Tensor& cov3D_precomp,
-	const torch::Tensor& viewmatrix,
-	const torch::Tensor& projmatrix,
-	const float tan_fovx, 
-	const float tan_fovy,
-    const int image_height,
-    const int image_width,
-	const bool prefiltered,
-	const bool debug);
