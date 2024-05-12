@@ -215,6 +215,7 @@ int CudaRasterizer::Rasterizer::forward(
 	const float* cam_pos,
 	const float tan_fovx, float tan_fovy,
 	const bool prefiltered,
+	const bool use_filter,
 	float* out_color,
 	int* out_point_id,
 	float* out_point_weight_pixel,
@@ -272,7 +273,8 @@ int CudaRasterizer::Rasterizer::forward(
 		geomState.conic_opacity,
 		tile_grid,
 		geomState.tiles_touched,
-		prefiltered
+		prefiltered,
+		use_filter
 	), debug)
 
 	// Compute prefix sum over full list of touched tile counts by Gaussians

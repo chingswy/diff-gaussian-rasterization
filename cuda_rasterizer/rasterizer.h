@@ -48,6 +48,7 @@ namespace CudaRasterizer
 			const float* cam_pos,
 			const float tan_fovx, float tan_fovy,
 			const bool prefiltered,
+			const bool use_filter,
 			float* out_color,
 			int* out_point_id,
 			float* out_point_weight_pixel,
